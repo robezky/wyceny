@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Kalkulator wycen</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧮</text></svg>">
-<style>
+<style id="styl-bramki">
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -78,6 +78,8 @@ button:disabled { opacity: .6; cursor: default; }
   }
 
   function uruchom(strona) {
+    // style ekranu hasła dotyczą też przycisków i pól kalkulatora, więc muszą zniknąć
+    document.getElementById("styl-bramki").remove();
     var styl = document.createElement("style");
     styl.textContent = strona.css;
     document.head.appendChild(styl);
