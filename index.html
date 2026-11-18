@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Kalkulator wycen</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧮</text></svg>">
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: #0d1316; color: #dfe8eb;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+#bramka { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 16px; }
+form { width: 100%; max-width: 360px; padding: 24px; border: 1px solid #2c3a41; border-radius: 6px; background: #151d21; }
+h1 { margin: 0 0 16px; font-size: 20px; }
+label { display: block; margin-bottom: 4px; font-weight: 600; }
+input { display: block; width: 100%; padding: 9px 10px; border: 1px solid #a3b3ba; border-radius: 4px;
+  background: #0d1316; color: inherit; font: inherit; }
+button { width: 100%; margin-top: 12px; padding: 9px 18px; border: 0; border-radius: 4px;
+  background: #5fd6cc; color: #0d1316; font: inherit; font-weight: 600; cursor: pointer; }
+button:hover { background: #86e3db; }
+button:disabled { opacity: .6; cursor: default; }
+:focus-visible { outline: 2px solid #5fd6cc; outline-offset: 2px; }
+#blad { margin: 12px 0 0; color: #f08a80; }
+</style>
+</head>
+<body>
+<main id="bramka">
+  <form id="formularz" hidden>
+    <h1>Kalkulator wycen</h1>
+    <label for="haslo">Hasło</label>
+    <input type="password" id="haslo" autocomplete="current-password" required>
+    <button type="submit" id="otworz">Otwórz</button>
+    <p id="blad" role="alert" hidden></p>
+  </form>
+</main>
+<script src="dane.szyfr.js"></script>
+<script>
+(function () {
+  "use strict";
+  var PAMIEC = "kalkulator-cennik:klucz";
+  var D = window.ZASZYFROWANE;
+  var subtle = window.crypto && window.crypto.subtle;
+  var formularz = document.getElementById("formularz");
+  var pole = document.getElementById("haslo");
+  var przycisk = document.getElementById("otworz");
+  var blad = document.getElementById("blad");
+
+  function bajty(b64) {
+    var s = atob(b64), w = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) w[i] = s.charCodeAt(i);
+    return w;
+  }
+
+  function naBase64(bufor) {
+    var w = new Uint8Array(bufor), s = "";
+    for (var i = 0; i < w.length; i++) s += String.fromCharCode(w[i]);
+    return btoa(s);
+  }
+
+  function pokazBlad(tekst) {
+    blad.textContent = tekst;
+    blad.hidden = false;
+  }
+
+  function pokazFormularz() {
+    formularz.hidden = false;
+    pole.focus();
+  }
+
+  function odszyfruj(klucz) {
+    return subtle.decrypt({ name: "AES-GCM", iv: bajty(D.iv) }, klucz, bajty(D.dane))
+      .then(function (wynik) { return JSON.parse(new TextDecoder().decode(wynik)); });
+  }
+
+  function uruchom(strona) {
+    var styl = document.createElement("style");
+    styl.textContent = strona.css;
+    document.head.appendChild(styl);
+    document.body.innerHTML = strona.html;
+    var skrypt = document.createElement("script");
+    skrypt.textContent = strona.js;
+    document.body.appendChild(skrypt);
+  }
+
+  function kluczZHasla(haslo) {
+    return subtle.importKey("raw", new TextEncoder().encode(haslo.normalize("NFC")), "PBKDF2",
+      false, ["deriveKey"]).then(function (material) {
+      return subtle.deriveKey(
+        { name: "PBKDF2", hash: "SHA-256", salt: bajty(D.sol), iterations: D.iteracje },
+        material, { name: "AES-GCM", length: 256 }, true, ["decrypt"]);
+    });
+  }
+
+  function zapamietaj(klucz) {
+    return subtle.exportKey("raw", klucz).then(function (surowy) {
+      try { window.sessionStorage.setItem(PAMIEC, naBase64(surowy)); } catch (e) { /* bez pamięci */ }
+    });
+  }
+
+  function zapamietany() {
+    var zapis = null;
+    try { zapis = window.sessionStorage.getItem(PAMIEC); } catch (e) { /* bez pamięci */ }
+    if (!zapis) return Promise.reject(new Error("brak"));
+    return subtle.importKey("raw", bajty(zapis), "AES-GCM", false, ["decrypt"]).then(odszyfruj);
+  }
+
+  formularz.addEventListener("submit", function (e) {
+    e.preventDefault();
+    blad.hidden = true;
+    przycisk.disabled = true;
+    przycisk.textContent = "Otwieram…";
+    kluczZHasla(pole.value).then(function (klucz) {
+      return odszyfruj(klucz).then(function (strona) {
+        return zapamietaj(klucz).then(function () { uruchom(strona); });
+      });
+    }).catch(function () {
+      przycisk.disabled = false;
+      przycisk.textContent = "Otwórz";
+      pole.value = "";
+      pokazFormularz();
+      pokazBlad("Nieprawidłowe hasło.");
+    });
+  });
+
+  if (!subtle || !D) {
+    formularz.hidden = false;
+    przycisk.disabled = true;
+    pokazBlad("Ta przeglądarka nie może otworzyć strony. Otwórz adres zaczynający się od https://.");
+    return;
+  }
+  zapamietany().then(uruchom).catch(function () {
+    try { window.sessionStorage.removeItem(PAMIEC); } catch (e) { /* bez pamięci */ }
+    pokazFormularz();
+  });
+})();
+</script>
+</body>
+</html>
