@@ -100,13 +100,13 @@ button:disabled { opacity: .6; cursor: default; }
 
   function zapamietaj(klucz) {
     return subtle.exportKey("raw", klucz).then(function (surowy) {
-      try { window.sessionStorage.setItem(PAMIEC, naBase64(surowy)); } catch (e) { /* bez pamięci */ }
+      try { window.localStorage.setItem(PAMIEC, naBase64(surowy)); } catch (e) { /* bez pamięci */ }
     });
   }
 
   function zapamietany() {
     var zapis = null;
-    try { zapis = window.sessionStorage.getItem(PAMIEC); } catch (e) { /* bez pamięci */ }
+    try { zapis = window.localStorage.getItem(PAMIEC); } catch (e) { /* bez pamięci */ }
     if (!zapis) return Promise.reject(new Error("brak"));
     return subtle.importKey("raw", bajty(zapis), "AES-GCM", false, ["decrypt"]).then(odszyfruj);
   }
@@ -136,7 +136,7 @@ button:disabled { opacity: .6; cursor: default; }
     return;
   }
   zapamietany().then(uruchom).catch(function () {
-    try { window.sessionStorage.removeItem(PAMIEC); } catch (e) { /* bez pamięci */ }
+    try { window.localStorage.removeItem(PAMIEC); } catch (e) { /* bez pamięci */ }
     pokazFormularz();
   });
 })();
